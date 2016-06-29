@@ -56,6 +56,12 @@ weChatBot.on('msg', (sender, msg) => {
 		userName = sender.nickName + (sender.isSelf ? '(Self)' : '');
 	}
 	console.log(`${userName}: \n\t${msg.Content}`);
+	if(msg.Content.indexOf('test') >= 0) {
+		// send hello wolrd to sender
+		weChatBot.sendTextMsg(sender.userName, 'hello world', (err, retCode) => {
+			console.log('send msg ' + (err ? err : ' success.'));
+		});
+	}
 });
 
 /**

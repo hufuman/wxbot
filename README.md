@@ -14,6 +14,8 @@ npm install wxbot
 
 ## USAGE
 
+see example.js
+
 ```
 const WeChatBot = require('wechat');
 
@@ -39,9 +41,19 @@ weChatBot.on('msg', (sender, msg) => {
 		userName = sender.nickName + (sender.isSelf ? '(Self)' : '');
 	}
 	console.log(`${userName}: \n\t${msg.Content}`);
+	if(msg.Content.indexOf('test') >= 0) {
+		// send response to sender
+		weChatBot.sendTextMsg(sender.userName, 'hello world', (err, retCode) => {
+			console.log('send msg ' + (err ? err : ' success.'));
+		});
+	}
 });
 
 ```
+
+### TODO
+
+1. nothing now
 
 ### NOTE
 Thanks to [Weixinbot](https://github.com/hufuman/WeixinBot).

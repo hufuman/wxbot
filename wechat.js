@@ -12,7 +12,8 @@ const superagent = require('superagent');
 const wechatUrls = {
 	uuidUrl: 'https://login.weixin.qq.com/jslogin?appid=wx782c26e4c19acffb&redirect_uri=https%3A%2F%2Fwx.qq.com%2Fcgi-bin%2Fmmwebwx-bin%2Fwebwxnewloginpage&fun=new&lang=zh_CN&_=1388994062250',
 	qrcodeUrl: 'https://login.weixin.qq.com/qrcode/{uuid}?t=webwx',
-	statReportUrl: 'https://wx.qq.com/cgi-bin/mmwebwx-bin/webwxstatreport?type=1&r=1455625522'
+	baseUrl: 'https://wx.qq.com/cgi-bin/mmwebwx-bin',
+	statReportUrl: '/webwxstatreport?type=1&r=1455625522'
 }
 
 
@@ -78,6 +79,52 @@ class WeChatBot extends events{
 		], function(err, results) {
 			console.log('all done');
 		});
+	}
+
+	/**
+	 *
+	 * @param callback - (err, ret_code), 0 for success
+	 *
+	 */
+	sendTextMsg(toUserName, msg, callback) {
+		let clientMsgId = new Date().valueOf() + Math.floor(Math.random() * 8999 + 100);
+		let data = {
+			BaseRequest: {
+				Uin: this.userAuth.uin,
+				Sid: this.userAuth.sid,
+				Skey: this.userAuth.SKey,
+				DeviceID: this.userAuth.deviceId
+			},
+			Msg: {
+				Type: 1,
+				Content: msg,
+				FromUserName: this.selfInfo.userName,
+				ToUserName: toUserName,
+				LocalID: clientMsgId,
+				ClientMsgId: clientMsgId
+			}
+		};
+		let url = wechatUrls.baseUrl + '/webwxsendmsg?pass_ticket=' + this.userAuth.ticket;
+
+		superagent.post(url)
+			.set('Cookie', this.userAuth.cookie)
+			.set('Content-Type', 'application/json')
+			.set('Accept-Encoding', 'gzip')
+			.send(JSON.stringify(data))
+			.end(function(err, res) {
+				let retCode = -1;
+				let msg = null;
+				if(!err) {
+					if(res.text) {
+						let response = JSON.parse(res.text);
+						retCode = response.BaseResponse.Ret;
+						msg = response.BaseResponse.ErrMsg;
+						if(!msg && msg.length == 0)
+							msg = null;
+					}
+				}
+				callback(err || msg || (retCode == 0 ? null : 'retCode: ' + retCode), retCode);
+			});
 	}
 
 	/**
@@ -152,11 +199,11 @@ class WeChatBot extends events{
 					cb(null);
 					return;
 				} else if(!loginReported && res.text.indexOf('window.code=201;')) {
-					superagent.post('https://wx.qq.com/cgi-bin/mmwebwx-bin/webwxstatreport?type=1&r=1455625520')
+					superagent.post(wechatUrls.baseUrl + '/webwxstatreport?type=1&r=1455625520')
 						.set('Accept-Encoding', 'gzip')
 						.send('{"BaseRequest":{"Uin":0,"Sid":0},"Count":1,"List":[{"Type":1,"Text":"/cgi-bin/mmwebwx-bin/login, First Request Success, uuid: ' + self.uuid + '"}]}')
 						.end();
-					superagent.post('https://wx.qq.com/cgi-bin/mmwebwx-bin/webwxstatreport?type=1&r=1455625520')
+					superagent.post(wechatUrls.baseUrl + '/webwxstatreport?type=1&r=1455625520')
 						.set('Accept-Encoding', 'gzip')
 						.send('{"BaseRequest":{"Uin":0,"Sid":0},"Count":1,"List":[{"Type":1,"Text":"/cgi-bin/mmwebwx-bin/login, Second Request Success, uuid: ' + self.uuid + '"}]}')
 						.end();
@@ -338,7 +385,7 @@ class WeChatBot extends events{
 	 */
 	fetchMsgContent() {
 		let self = this;
-		let url = 'https://wx.qq.com/cgi-bin/mmwebwx-bin/webwxsync?sid=' + this.userAuth.sid + '&skey=' + this.userAuth.SKey + '&r=' + (new Date()).valueOf();
+		let url = wechatUrls.baseUrl + '/webwxsync?sid=' + this.userAuth.sid + '&skey=' + this.userAuth.SKey + '&r=' + (new Date()).valueOf();
 		superagent.post(url)
 			.set('Cookie', this.userAuth.cookie)
 			.set('Accept-Encoding', 'gzip')
