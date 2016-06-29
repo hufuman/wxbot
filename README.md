@@ -14,7 +14,7 @@ npm install wxbotjs
 
 ## USAGE
 
-see example.js
+1. example.js
 
 ```
 const WeChatBot = require('wechat');
@@ -51,9 +51,19 @@ weChatBot.on('msg', (sender, msg) => {
 
 ```
 
+2. hot reload example: example/hot-reload
+
+it's very useful to reload bot.js while developing bot.
+
+***note:***
+
+hot-reload depends on [require-reload](https://www.npmjs.com/package/reload-require)
+
 ### TODO
 
 1. Reload bot while bot is running
+2. Send file
+3. Send image
 
 ### NOTE
 Thanks to [Weixinbot](https://github.com/hufuman/WeixinBot).

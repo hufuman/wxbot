@@ -2,7 +2,7 @@
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
-const WeChatBot = require('./wechat');
+const WeChatBot = require('../wechat');
 
 
 let options = {
