@@ -1,5 +1,5 @@
 {
-  "name": "wxbot",
+  "name": "wxbotjs",
   "version": "1.0.0",
   "description": "nodejs implementation for wechat bot",
   "main": "wechat.js",

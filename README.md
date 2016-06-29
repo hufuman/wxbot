@@ -1,15 +1,15 @@
-# wxbot - bot for wechat
+# wxbotjs - bot for wechat
 
 nodejs implementation for wechat bot
 
 [wechat](http://weixin.qq.com/) is a popular IM made by Tencent.
 
-wxbot aims to provide a simple way to implement a weichat bot.
+wxbotjs aims to provide a simple way to implement a weichat bot.
 
 ### INSTALLATION
 
 ```
-npm install wxbot
+npm install wxbotjs
 ```
 
 ## USAGE
@@ -53,7 +53,7 @@ weChatBot.on('msg', (sender, msg) => {
 
 ### TODO
 
-1. nothing now
+1. Reload bot while bot is running
 
 ### NOTE
 Thanks to [Weixinbot](https://github.com/hufuman/WeixinBot).
