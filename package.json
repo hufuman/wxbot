@@ -1,0 +1,29 @@
+{
+  "name": "wxbot",
+  "version": "1.0.0",
+  "description": "nodejs implementation for wechat bot",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hufuman/wxbot.git"
+  },
+  "keywords": [
+    "bot",
+    "wechat",
+    "nodejs",
+    "weixin"
+  ],
+  "author": "hufuman",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/hufuman/wxbot/issues"
+  },
+  "homepage": "https://github.com/hufuman/wxbot#readme",
+  "dependencies": {
+    "async": "^2.0.0-rc.6",
+    "superagent": "^2.0.0"
+  }
+}
