@@ -5,6 +5,7 @@ const url = require('url');
 const path = require('path');
 const https = require('https');
 const async = require('async');
+const events = require('events');
 const superagent = require('superagent');
 
 
@@ -15,23 +16,26 @@ const wechatUrls = {
 }
 
 
-class WeChatBot {
+/**
+ *
+ *	events:
+ *		qrcode, params: filePath
+ *		user, param: this.selfInfo
+ *		msg, param: [{FromUserName, Content, MsgType}]
+ *		contact, param: [{userName, nickName, headImgUrl}]
+ *
+ */
+
+class WeChatBot extends events{
 
 	/**
 	 *
-	 * @param options - {event: eventEmitter, basePath: ''}
-	 *	events:
-	 *		qrcode, params: filePath
-	 *		user, param: this.selfInfo
-	 *		msg, param: [{FromUserName, Content, MsgType}]
-	 *		contact, param: [{userName, nickName, headImgUrl}]
+	 * @param options - {basePath: ''}
+	 *
 	 */
 	constructor(options) {
-		this.options = {
-			basePath: './'
-		};
-		Object.assign(this.options, options);
-		this.event = options.event;
+		super();
+		this.basePath = options.basePath || './';
 		this.redirectUri = '';
 		this.baseUri = '';
 		this.uuid = '';
@@ -117,13 +121,13 @@ class WeChatBot {
 	 */
 	downloadQrcode(cb) {
 		let self = this;
-		let file = path.join(this.options.basePath, 'qrcode.png');
+		let file = path.join(this.basePath, 'qrcode.png');
 		superagent
 			.get(wechatUrls.qrcodeUrl.replace('{uuid}', self.uuid))
 			.on('end', function(err) {
 				console.log('qrcode download ' + (err ? 'failed' : 'success'));
 				if(!err)
-					self.options.event.emit('qrcode', file);
+					self.emit('qrcode', file);
 				cb(err);
 			})
 			.pipe(fs.createWriteStream(file));
@@ -244,7 +248,7 @@ class WeChatBot {
 					self.selfInfo.headImgUrl = data.User.HeadImgUrl;
 					self.userAuth.SKey = data.SKey;
 					self.userAuth.SyncKey = data.SyncKey;
-					self.event.emit('user', self.selfInfo);
+					self.emit('user', self.selfInfo);
 				}
 
 				cb(err);
@@ -277,7 +281,7 @@ class WeChatBot {
 						};
 						self.contactList.push(d);
 					}
-					self.event.emit('contact', self.contactList);
+					self.emit('contact', self.contactList);
 				}
 				cb(err);
 			});
@@ -356,7 +360,10 @@ class WeChatBot {
 					if(data.SyncKey.Count > 0)
 						self.userAuth.SyncKey = data.SyncKey;
 					if(data && data.AddMsgList && data.AddMsgList.length > 0) {
-						self.event.emit('msg', data.AddMsgList);
+						data.AddMsgList.forEach(msg => {
+							let userInfo = self.getUserByUserName(msg.FromUserName);
+							self.emit('msg', userInfo, msg);
+						});
 					}
 				}
 			});

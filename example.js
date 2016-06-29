@@ -1,47 +1,67 @@
 
-
 const os = require('os');
 const fs = require('fs');
-const EventEmitter = require('events');
+const path = require('path');
 const WeChatBot = require('./wechat');
 
 
-let event = new EventEmitter();
 let options = {
-	basePath: os.userInfo().homedir,
-	event: event
+	// path to downloda qrcode image
+	basePath: path.join(os.userInfo().homedir, 'Desktop')
 }
 let weChatBot = new WeChatBot(options);
 
-event.on('qrcode', file => {
+/**
+ *
+ * after downloaded qrcode image
+ *
+ */
+weChatBot.on('qrcode', file => {
 	console.log('qrcode file: ' + file);
 	console.log('you need to open this file, and scan it use wechat to login.')
 });
 
-event.on('user', userInfo => {
+/**
+ *
+ * after fetched current user's information
+ *
+ *
+ */
+weChatBot.on('user', userInfo => {
 	console.log('self info: ')
 	console.dir(userInfo);
 });
 
-event.on('contact', contacts => {
+/**
+ *
+ * after fetched contact list
+ *
+ *
+ */
+weChatBot.on('contact', contacts => {
 	console.log('contact count is ' + contacts.length);
 });
 
-let count = 0;
-event.on('msg', msgs => {
-	msgs.forEach(msg => {
-		if(msg.MsgType != 1)
-			return;
-		let userInfo = weChatBot.getUserByUserName(msg.FromUserName);
-		let userName = msg.FromUserName;
-		if(userInfo) {
-			userName = userInfo.nickName;
-			if(userInfo.isSelf)
-				userName += `(Self)`;
-		}
-		console.log(`${userName}: `);
-		console.log(`\t${msg.Content}`);
-	});
+/**
+ *
+ * after msg arrived
+ *
+ *
+ */
+weChatBot.on('msg', (sender, msg) => {
+	if(msg.MsgType != 1)
+		return;
+	let userName = msg.FromUserName;
+	if(sender) {
+		userName = sender.nickName + (sender.isSelf ? '(Self)' : '');
+	}
+	console.log(`${userName}: \n\t${msg.Content}`);
 });
 
+/**
+ *
+ * login after setuped event listeners
+ *
+ */
 weChatBot.login();
+
