@@ -320,11 +320,13 @@ class WeChatBot extends events{
 				if(!err && res.text) {
 					var memberList = JSON.parse(res.text).MemberList;
 					for(var i in memberList) {
+						let m = memberList[i];
 						var d = {
-							userName: memberList[i].UserName,
-							nickName: memberList[i].NickName,
-							headImgUrl: memberList[i].HeadImgUrl,
-							_raw: memberList[i]
+							userName: m.UserName,
+							nickName: m.NickName,
+							alias: m.Alias,
+							headImgUrl: m.HeadImgUrl,
+							_raw: m
 						};
 						self.contactList.push(d);
 					}
@@ -354,7 +356,7 @@ class WeChatBot extends events{
 			.end(function(err, res) {
 				if(!err) {
 					if(res.text.indexOf('selector:"0"') < 0) {
-						// 有新的消息
+						// new msg
 						self.fetchMsgContent();
 					}
 				} else {
