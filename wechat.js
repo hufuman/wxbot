@@ -129,6 +129,21 @@ class WeChatBot extends events{
 
 	/**
 	 *
+	 * get user by alias/nickName/remarkName
+	 *
+	 */
+	getUserByName(name) {
+		if(name === this.selfInfo.alias || name === this.selfInfo.nickName || name === this.selfInfo.remarkName) {
+			return this.selfInfo;
+		}
+		let users = this.contactList.filter(d => name === d.alias || name === d.nickName || name === d.remarkName);
+		if(users.length === 0)
+			return null;
+		return users[0];
+	}
+
+	/**
+	 *
 	 * get user's name by userName
 	 *
 	 */
