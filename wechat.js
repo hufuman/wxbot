@@ -45,6 +45,7 @@ class WeChatBot extends events{
 			isSelf: true,
 			userName: '',
 			nickName: '',
+			remarkName: '',
 			headImgUrl: ''
 		};
 		this.contactList = [];
@@ -307,6 +308,7 @@ class WeChatBot extends events{
 					var data = JSON.parse(res.text);
 					self.selfInfo.userName = data.User.UserName;
 					self.selfInfo.nickName = data.User.NickName;
+					self.selfInfo.remarkName = data.User.RemarkName;
 					self.selfInfo.headImgUrl = data.User.HeadImgUrl;
 					self.userAuth.SKey = data.SKey;
 					self.userAuth.SyncKey = data.SyncKey;
@@ -340,6 +342,7 @@ class WeChatBot extends events{
 							userName: m.UserName,
 							nickName: m.NickName,
 							alias: m.Alias,
+							remarkName: m.RemarkName,
 							headImgUrl: m.HeadImgUrl,
 							_raw: m
 						};
