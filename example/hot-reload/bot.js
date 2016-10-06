@@ -7,9 +7,9 @@ class Bot {
 
 	onMsg(userName, msg, sender) {
 		console.log(`${userName}: \n\tmsg: ${msg.Content}`);
-		if(msg.Content.indexOf('test') >= 0) {
+		if(msg.Content.indexOf('hello') >= 0) {
 			// send hello wolrd to sender
-			this.weChatBot.sendTextMsg(sender.userName, 'hello world', (err, retCode) => {
+			this.weChatBot.sendTextMsg(sender.userName, 'hello bot', (err, retCode) => {
 				console.log('send msg ' + (err ? err : ' success.'));
 			});
 		}

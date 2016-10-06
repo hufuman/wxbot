@@ -9,10 +9,10 @@ const events = require('events');
 const superagent = require('superagent');
 
 
+
 const wechatUrls = {
-	uuidUrl: 'https://login.weixin.qq.com/jslogin?appid=wx782c26e4c19acffb&redirect_uri=https%3A%2F%2Fwx.qq.com%2Fcgi-bin%2Fmmwebwx-bin%2Fwebwxnewloginpage&fun=new&lang=zh_CN&_=1388994062250',
+	uuidUrl: 'https://login.wx.qq.com/jslogin?appid=wx782c26e4c19acffb&redirect_uri=https%3A%2F%2Fwx.qq.com%2Fcgi-bin%2Fmmwebwx-bin%2Fwebwxnewloginpage&fun=new&lang=zh_CN&_=',
 	qrcodeUrl: 'https://login.weixin.qq.com/qrcode/{uuid}?t=webwx',
-	baseUrl: 'https://wx.qq.com/cgi-bin/mmwebwx-bin',
 	statReportUrl: '/webwxstatreport?type=1&r=1455625522'
 }
 
@@ -29,6 +29,10 @@ const wechatUrls = {
 
 class WeChatBot extends events{
 
+	getTimestamp() {
+		return ("" + Math.random().toFixed(15)).substring(2, 17);
+	}
+
 	/**
 	 *
 	 * @param options - {basePath: ''}
@@ -40,7 +44,10 @@ class WeChatBot extends events{
 		this.redirectUri = '';
 		this.baseUri = '';
 		this.uuid = '';
-		this.userAuth = {};
+		this.userAuth = {
+			deviceId: "e" + this.getTimestamp()
+		};
+		this.emit('deviceId', {deviceId: this.userAuth.deviceId});
 		this.selfInfo = {
 			isSelf: true,
 			userName: '',
@@ -64,6 +71,8 @@ class WeChatBot extends events{
 			cb => self.downloadQrcode(cb),
 			// check scan
 			cb => self.checkScan(cb),
+			// check login
+			cb => self.checkLogin(cb),
 			// fetch uin & sid & ticket etc.
 			cb => self.fetchUserAuth(cb),
 			// stat report
@@ -75,9 +84,12 @@ class WeChatBot extends events{
 			// start fetch msg
 			function(cb) {
 				console.log('checking msg...');
-				setInterval(self.fetchMsg.bind(self), 1000);
+				self.fetchMsg(cb);
 			}
 		], function(err, results) {
+			if(err) {
+				console.error('error: ' + err);
+			}
 			console.log('all done');
 		});
 	}
@@ -105,27 +117,19 @@ class WeChatBot extends events{
 				ClientMsgId: clientMsgId
 			}
 		};
-		let url = wechatUrls.baseUrl + '/webwxsendmsg?pass_ticket=' + this.userAuth.ticket;
+		let url = this.baseUri + '/webwxsendmsg?pass_ticket=' + this.userAuth.ticket;
 
-		superagent.post(url)
-			.set('Cookie', this.userAuth.cookie)
-			.set('Content-Type', 'application/json')
-			.set('Accept-Encoding', 'gzip')
-			.send(JSON.stringify(data))
-			.end(function(err, res) {
-				let retCode = -1;
-				let msg = null;
-				if(!err) {
-					if(res.text) {
-						let response = JSON.parse(res.text);
-						retCode = response.BaseResponse.Ret;
-						msg = response.BaseResponse.ErrMsg;
-						if(!msg && msg.length == 0)
-							msg = null;
-					}
-				}
-				callback(err || msg || (retCode == 0 ? null : 'retCode: ' + retCode), retCode);
-			});
+		this.postJson(url, data, (err, responseJson) => {
+			let retCode = -1;
+			let msg = null;
+			if(responseJson) {
+				retCode = responseJson.BaseResponse.Ret;
+				msg = responseJson.BaseResponse.ErrMsg;
+				if(!msg && msg.length == 0)
+					msg = null;
+			}
+			callback(err || msg || (retCode == 0 ? null : 'retCode: ' + retCode), retCode);
+		});
 	}
 
 	/**
@@ -165,18 +169,13 @@ class WeChatBot extends events{
 	 */
 	fetchUuid(cb) {
 		let self = this;
-		superagent.get(wechatUrls.uuidUrl)
-			.set('Accept-Encoding', 'gzip')
-			.end(function(err, res) {
-				if(err) {
-					console.log('fetchUuid error: ' + err);
-					cb(err);
-					return;
-				}
-				self.uuid = res.text.split('"')[1];
-				console.log('uuid: ' + self.uuid);
-				cb(null);
-			});
+		this.getString(wechatUrls.uuidUrl + this.getTimestamp(), (err, text) => {
+			if(!err) {
+				self.uuid = text.split('"')[1];
+				self.emit('uuid', {uuid: self.uuid});
+			}
+			cb(err);
+		});
 	}
 
 	/**
@@ -185,15 +184,24 @@ class WeChatBot extends events{
 	downloadQrcode(cb) {
 		let self = this;
 		let file = path.join(this.basePath, 'qrcode.png');
+		let stream = fs.createWriteStream(file);
+		stream.on('close', () => {
+			console.log('qrcode download success');
+			self.emit('qrcode', {file: file});
+			if(cb) {
+				cb(null);
+				cb = null;
+			}
+		});
 		superagent
 			.get(wechatUrls.qrcodeUrl.replace('{uuid}', self.uuid))
 			.on('end', function(err) {
-				console.log('qrcode download ' + (err ? 'failed' : 'success'));
-				if(!err)
-					self.emit('qrcode', file);
-				cb(err);
+				if(cb) {
+					cb(err);
+					cb = null;
+				}
 			})
-			.pipe(fs.createWriteStream(file));
+			.pipe(stream);
 	}
 
 
@@ -204,31 +212,35 @@ class WeChatBot extends events{
 	 */
 	checkScan(cb) {
 		let self = this;
-		let loginReported = false;
-		superagent.get('https://login.weixin.qq.com/cgi-bin/mmwebwx-bin/login?uuid={uuid}&tip=1&_='.replace('{uuid}', this.uuid))
-			.set('Accept-Encoding', 'gzip')
-			.end(function(err, res) {
-				if(!loginReported && res.text.indexOf('window.redirect_uri') > 0) {
-					self.redirectUri = res.text.split('"')[1];
-					self.baseUri = self.redirectUri.substring(0, self.redirectUri.lastIndexOf("/"))
-					console.log('redirectUri: ' + self.redirectUri);
-					cb(null);
-					return;
-				} else if(!loginReported && res.text.indexOf('window.code=201;')) {
-					superagent.post(wechatUrls.baseUrl + '/webwxstatreport?type=1&r=1455625520')
-						.set('Accept-Encoding', 'gzip')
-						.send('{"BaseRequest":{"Uin":0,"Sid":0},"Count":1,"List":[{"Type":1,"Text":"/cgi-bin/mmwebwx-bin/login, First Request Success, uuid: ' + self.uuid + '"}]}')
-						.end();
-					superagent.post(wechatUrls.baseUrl + '/webwxstatreport?type=1&r=1455625520')
-						.set('Accept-Encoding', 'gzip')
-						.send('{"BaseRequest":{"Uin":0,"Sid":0},"Count":1,"List":[{"Type":1,"Text":"/cgi-bin/mmwebwx-bin/login, Second Request Success, uuid: ' + self.uuid + '"}]}')
-						.end();
-					loginReported = true;
-					console.log('logging...');
-				}
-
+		console.log('checking...');
+		let url = ('https://login.wx.qq.com/cgi-bin/mmwebwx-bin/login?loginicon=false&uuid={uuid}&tip=0&_=' + this.getTimestamp()).replace('{uuid}', this.uuid);
+		this.getString(url, (err, text) => {
+			if(text && text.indexOf('window.code=201;') >= 0) {
+				cb(null);
+			} else {
 				setTimeout(function(){self.checkScan(cb)}, 200);
-				console.log('checking...');
+			}
+		});
+	}
+
+	/**
+	 * check if user click 'login' button
+	 *
+	 *
+	 */
+	checkLogin(cb) {
+		let self = this;
+		console.log('logining...');
+		let url = ('https://login.wx.qq.com/cgi-bin/mmwebwx-bin/login?uuid={uuid}&tip=1&_=' + this.getTimestamp()).replace('{uuid}', this.uuid);
+		this.getString(url, (err, text) => {
+			if(text && text.indexOf('window.code=200;') >= 0 && text.indexOf('window.redirect_uri') >= 0) {
+				self.redirectUri = text.split('"')[1];
+				self.baseUri = self.redirectUri.substring(0, self.redirectUri.lastIndexOf("/"));
+				self.emit('login', {});
+				cb(null);
+			} else {
+				setTimeout(function(){self.checkLogin(cb)}, 200);
+			}
 		});
 	}
 
@@ -260,7 +272,6 @@ class WeChatBot extends events{
 				self.userAuth.lang = cookies.match(/mm_lang=.+?;/)[0].split(/[=;]/)[1];
 				self.userAuth.cookie = 'wxuin=' + self.userAuth.uin + '; wxsid=' + self.userAuth.sid + '; wxloadtime=' + self.userAuth.loadtime + '; mm_lang=' + self.userAuth.lang + '; webwx_data_ticket=' + self.userAuth.ticket + '; webwxuvid=' + self.userAuth.uvid;
 				console.log('userAuth loaded');
-				// superagent.saveCookies(res);
 				cb(null);
 			} else {
 				let msg = 'fetch user auth failed, status: ' + res.statusCode;
@@ -299,24 +310,62 @@ class WeChatBot extends events{
 			.replace('{sid}', this.userAuth.sid)
 			.replace('{deviceId}', this.userAuth.deviceId);
 		let self = this;
-		superagent.post(initUrl)
-			.set('Cookie', self.userAuth.cookie)
-			.set('Accept-Encoding', 'gzip')
-			.send(body)
-			.end(function(err, res) {
-				if(!err && res.text) {
-					var data = JSON.parse(res.text);
-					self.selfInfo.userName = data.User.UserName;
-					self.selfInfo.nickName = data.User.NickName;
-					self.selfInfo.remarkName = data.User.RemarkName;
-					self.selfInfo.headImgUrl = data.User.HeadImgUrl;
-					self.userAuth.SKey = data.SKey;
-					self.userAuth.SyncKey = data.SyncKey;
-					self.emit('user', self.selfInfo);
-				}
+		this.postJson(initUrl, body, (err, responseJson) => {
+			if(responseJson) {
+				self.selfInfo = self.parseUserInfo(responseJson.User);
+				self.emit('selfInfo', {selfInfo: self.selfInfo});
+				self.userAuth.SKey = responseJson.SKey;
+				self.resetSyncKey(responseJson.SyncKey);
+			}
+			cb(err);
+		});
+	}
 
-				cb(err);
-			});
+	/**
+	 *
+	 *
+	 *
+	 */
+	resetSyncKey(syncKey) {
+		if(!syncKey)
+			return;
+		if((+syncKey.Count) <= 0)
+			return;
+		if(!syncKey.List || syncKey.List.length <= 0)
+			return;
+		this.userAuth.SyncKey = syncKey;
+		this.flatSyncKey = '';
+		for(let item of syncKey.List) {
+			this.flatSyncKey += item.Key + '_' + item.Val + '%7C';
+		}
+		this.flatSyncKey = this.flatSyncKey.substring(0, this.flatSyncKey.length - 3);
+	}
+
+	/**
+	 * parse uesr info in json object
+	 *
+	 *
+	 *
+	 */
+	parseUserInfo(userObj) {
+		let userInfo = {
+		    userName: userObj.UserName,
+		    nickName: userObj.NickName,
+		    displayName: userObj.DisplayName,
+		    remarkName: userObj.RemarkName,
+		    contactFlag: userObj.ContactFlag,
+		    sex: userObj.Sex,
+		    signature: userObj.Signature,
+
+		    searchPinyins: userObj.KeyWord + '|'
+		        + userObj.PYInitia + '|'
+		        + userObj.PYQuanPin + '|'
+		        + userObj.RemarkPYInitial + '|'
+		        + userObj.RemarkPYQuanPin + '|',
+
+		    headImgUrl: 'https://wx.qq.com' + userObj.HeadImgUrl
+		};
+		return userInfo;
 	}
 
 	/**
@@ -327,31 +376,22 @@ class WeChatBot extends events{
 	 *
 	 */
 	getContact (cb) {
-		let url = this.baseUri + `/webwxgetcontact?lang=zh_CN&pass_ticket=${this.userAuth.ticket}&seq=0&skey=${this.userAuth.SKey}&r=1455625522`;
+		let url = this.baseUri + `/webwxgetcontact?lang=zh_CN&pass_ticket=${this.userAuth.ticket}&seq=0&skey=${this.userAuth.SKey}&r=` + this.getTimestamp();
 
 		let self = this;
-		superagent.get(url)
-			.set('Cookie', self.userAuth.cookie)
-			.set('Accept-Encoding', 'gzip')
-			.end(function(err, res) {
-				if(!err && res.text) {
-					var memberList = JSON.parse(res.text).MemberList;
-					for(var i in memberList) {
-						let m = memberList[i];
-						var d = {
-							userName: m.UserName,
-							nickName: m.NickName,
-							alias: m.Alias,
-							remarkName: m.RemarkName,
-							headImgUrl: m.HeadImgUrl,
-							_raw: m
-						};
-						self.contactList.push(d);
-					}
-					self.emit('contact', self.contactList);
+		this.getString(url, (err, text) => {
+			if(err) {
+				setTimeout(self.getContact.bind(self), 500);
+			} else {
+				var memberList = JSON.parse(text).MemberList;
+				for(var i in memberList) {
+					var d = self.parseUserInfo(memberList[i]);
+					self.contactList.push(d);
 				}
-				cb(err);
-			});
+				self.emit('contacts', {contacts: self.contactList});
+				cb(null);
+			}
+		});
 	}
 
 	/**
@@ -360,42 +400,43 @@ class WeChatBot extends events{
 	 *
 	 *
 	 */
-	fetchMsg() {
+	fetchMsg(cb) {
 		let self = this;
-		let url = 'https://webpush.weixin.qq.com/cgi-bin/mmwebwx-bin/synccheck?skey'
-			+ this.userAuth.SKey + '&callback=jQuery183084135492448695_1420782130686&r=' + (new Date()).valueOf()
+		let url = 'https://webpush.weixin.qq.com/cgi-bin/mmwebwx-bin/synccheck?skey='
+			+ this.userAuth.SKey + '&callback=jQuery183084135492448695_1420782130686&r=' + this.getTimestamp()
 			+ '&sid=' + this.userAuth.sid
 			+ '&uin=' + this.userAuth.uin
-			+ '&deviceid=' + this.userAuth.deviceid
-			+ '&synckey' + this.getSyncKey();
-		superagent.get(url)
-			.set('Cookie', this.userAuth.cookie)
-			.set('Accept-Encoding', 'gzip')
-			.end(function(err, res) {
-				if(!err) {
-					if(res.text.indexOf('selector:"0"') < 0) {
-						// new msg
-						self.fetchMsgContent();
-					}
+			+ '&deviceid=' + this.userAuth.deviceId
+			+ '&synckey=' + this.flatSyncKey;
+
+		this.getString(url, (err, text) => {
+			let needToFetchMsg = true;
+			if(text.indexOf('window.synccheck=') == 0) {
+				needToFetchMsg = false;
+				let retCode = +text.split('retcode:"')[1].split('"')[0];
+				let selector = +text.split('selector:"')[1].split('"')[0];
+				if(retCode === 0 && selector != 0) {
+					self.fetchMsgContent(() => {
+						self.fetchMsg();
+					});
+				} else if(retCode == 1100) {
+					console.log('text: ' + text);
+					console.log('retCode: ' + retCode + ', selector: ' + selector);
+					self.emit('logout', {reason: 'app_exited'});
+				} else if(retCode == 1101) {
+					console.log('text: ' + text);
+					console.log('retCode: ' + retCode + ', selector: ' + selector);
+					self.emit('logout', {reason: 'other_login'});
 				} else {
-					console.log('fetchMsg failed: ' + err);
+					needToFetchMsg = true;
 				}
-			});
+			}
+			if(needToFetchMsg) {
+				setTimeout(self.fetchMsg.bind(self), 500);
+			}
+		});
 	}
 
-	/**
-	 *
-	 * get sync key
-	 *
-	 */
-	getSyncKey() {
-		let result = '';
-		for(let key in this.userAuth.SyncKey.List) {
-			result += key.Key + '_' + key.Val + '%7C';
-		}
-		result = result.substring(0, result.length - 3);
-		return result;
-	}
 
 	/**
 	 *
@@ -403,36 +444,70 @@ class WeChatBot extends events{
 	 *
 	 *
 	 */
-	fetchMsgContent() {
+	fetchMsgContent(cb) {
 		let self = this;
-		let url = wechatUrls.baseUrl + '/webwxsync?sid=' + this.userAuth.sid + '&skey=' + this.userAuth.SKey + '&r=' + (new Date()).valueOf();
+		let url = this.baseUri + '/webwxsync?sid=' + this.userAuth.sid + '&lang=zh_CN&skey=' + this.userAuth.SKey + '&r=' + this.getTimestamp() + '&pass_ticket=' + this.userAuth.ticket;
+		let data = {
+			BaseRequest: {
+				Uin: self.userAuth.uin,
+				Sid: self.userAuth.sid,
+				Skey: self.userAuth.SKey
+			},
+			SyncKey: self.userAuth.SyncKey,
+			rr: this.getTimestamp()
+		};
+		this.postJson(url, data, (err, responseJson) => {
+			if(!err) {
+				self.resetSyncKey(responseJson.SyncKey);
+				if(responseJson && responseJson.AddMsgCount > 0 && responseJson.AddMsgList && responseJson.AddMsgList.length > 0) {
+					responseJson.AddMsgList.forEach(msg => {
+						let userInfo = self.getUserByUserName(msg.FromUserName);
+						self.emit('msg', {from: userInfo, msg: msg});
+					});
+				}
+			}
+			cb();
+		});
+	}
+
+	getString(url, callback) {
+		let self = this;
+		superagent.get(url)
+			.set('Cookie', this.userAuth.cookie || '')
+			.set('Accept-Encoding', 'gzip')
+			.set('Content-Type', 'application/json')
+			.end(function(err, res) {
+				let text = null;
+				if(err) {
+					console.log('network error: ' + err);
+				} else if(!res || !res.text) {
+					err = 'empty response';
+					console.log('empty response');
+				} else {
+					text = res.text;
+				}
+				callback(err, text);
+			});
+	}
+
+	postJson(url, data, callback) {
+		let self = this;
 		superagent.post(url)
 			.set('Cookie', this.userAuth.cookie)
 			.set('Accept-Encoding', 'gzip')
-			.send({
-				BaseRequest: {
-					Uin: self.userAuth.uin,
-					Sid: self.userAuth.sid,
-				},
-				SyncKey: self.userAuth.SyncKey,
-				rr: (new Date()).valueOf()
-			})
+			.set('Content-Type', 'application/json')
+			.send(data)
 			.end(function(err, res) {
-				if(err || !res.text) {
-					console.log('fetch msg content failed: ' + err);
+				let responseJson = null;
+				if(err) {
+					console.log('network error: ' + err);
+				} else if(!res || !res.text) {
+					err = 'empty response';
+					console.log('empty response');
 				} else {
-					var data = JSON.parse(res.text);
-					if(data.AddMsgCount <= 0)
-						return;
-					if(data.SyncKey.Count > 0)
-						self.userAuth.SyncKey = data.SyncKey;
-					if(data && data.AddMsgList && data.AddMsgList.length > 0) {
-						data.AddMsgList.forEach(msg => {
-							let userInfo = self.getUserByUserName(msg.FromUserName);
-							self.emit('msg', userInfo, msg);
-						});
-					}
+					responseJson = JSON.parse(res.text);
 				}
+				callback(err, responseJson);
 			});
 	}
 }

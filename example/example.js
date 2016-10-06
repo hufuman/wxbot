@@ -16,9 +16,9 @@ let weChatBot = new WeChatBot(options);
  * after downloaded qrcode image
  *
  */
-weChatBot.on('qrcode', file => {
-	console.log('qrcode file: ' + file);
-	console.log('you need to open this file, and scan it use wechat to login.')
+weChatBot.on('qrcode', args => {
+	console.log('qrcode file: ' + args.file);
+	console.log('you need to open this file, and scan it use wechat to login.');
 });
 
 /**
@@ -27,9 +27,9 @@ weChatBot.on('qrcode', file => {
  *
  *
  */
-weChatBot.on('user', userInfo => {
+weChatBot.on('selfInfo', args => {
 	console.log('self info: ')
-	console.dir(userInfo);
+	console.dir(args.selfInfo);
 });
 
 /**
@@ -38,8 +38,8 @@ weChatBot.on('user', userInfo => {
  *
  *
  */
-weChatBot.on('contact', contacts => {
-	console.log('contact count is ' + contacts.length);
+weChatBot.on('contacts', args => {
+	console.log('contact count is ' + args.contacts.length);
 });
 
 /**
@@ -48,7 +48,9 @@ weChatBot.on('contact', contacts => {
  *
  *
  */
-weChatBot.on('msg', (sender, msg) => {
+weChatBot.on('msg', args => {
+	let sender = args.from;
+	let msg = args.msg;
 	if(msg.MsgType != 1)
 		return;
 	let userName = msg.FromUserName;
@@ -56,9 +58,9 @@ weChatBot.on('msg', (sender, msg) => {
 		userName = sender.nickName + (sender.isSelf ? '(Self)' : '');
 	}
 	console.log(`${userName}: \n\t${msg.Content}`);
-	if(msg.Content.indexOf('test') >= 0) {
+	if(msg.Content.indexOf('hello') >= 0) {
 		// send hello wolrd to sender
-		weChatBot.sendTextMsg(sender.userName, 'hello world', (err, retCode) => {
+		weChatBot.sendTextMsg(sender.userName, 'hello bot', (err, retCode) => {
 			console.log('send msg ' + (err ? err : ' success.'));
 		});
 	}

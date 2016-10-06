@@ -1,8 +1,8 @@
 {
   "name": "wxbotjs",
-  "version": "1.0.8",
+  "version": "1.0.3",
   "description": "nodejs implementation for wechat bot",
-  "main": "wechat.js",
+  "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -23,8 +23,6 @@
   },
   "homepage": "https://github.com/hufuman/wxbot#readme",
   "dependencies": {
-    "async": "^2.0.0-rc.6",
-    "require-reload": "^0.2.2",
-    "superagent": "^2.0.0"
+    "require-reload": "^0.2.2"
   }
 }

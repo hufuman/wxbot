@@ -33,13 +33,15 @@ fs.watch('./bot.js', () => {
 });
 
 // notify user to scan qrcode
-weChatBot.on('qrcode', file => {
-	console.log('qrcode file: ' + file);
+weChatBot.on('qrcode', args => {
+	console.log('qrcode file: ' + args.file);
 	console.log('you need to open this file, and scan it use wechat to login.')
 });
 
 // msg received
-weChatBot.on('msg', (sender, msg) => {
+weChatBot.on('msg', args => {
+	let sender = args.from;
+	let msg = args.msg;
 	if(msg.MsgType != 1)
 		return;
 	let userName = msg.FromUserName;
