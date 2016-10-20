@@ -215,7 +215,7 @@ class WeChatBot extends events{
 		console.log('checking...');
 		let url = ('https://login.wx.qq.com/cgi-bin/mmwebwx-bin/login?loginicon=false&uuid={uuid}&tip=0&_=' + this.getTimestamp()).replace('{uuid}', this.uuid);
 		this.getString(url, (err, text) => {
-			if(text && text.indexOf('window.code=201;') >= 0) {
+			if(!err && text && text.indexOf('window.code=201;') >= 0) {
 				cb(null);
 			} else {
 				setTimeout(function(){self.checkScan(cb)}, 200);
@@ -233,7 +233,7 @@ class WeChatBot extends events{
 		console.log('logining...');
 		let url = ('https://login.wx.qq.com/cgi-bin/mmwebwx-bin/login?uuid={uuid}&tip=1&_=' + this.getTimestamp()).replace('{uuid}', this.uuid);
 		this.getString(url, (err, text) => {
-			if(text && text.indexOf('window.code=200;') >= 0 && text.indexOf('window.redirect_uri') >= 0) {
+			if(!err && text && text.indexOf('window.code=200;') >= 0 && text.indexOf('window.redirect_uri') >= 0) {
 				self.redirectUri = text.split('"')[1];
 				self.baseUri = self.redirectUri.substring(0, self.redirectUri.lastIndexOf("/"));
 				self.emit('login', {});
@@ -410,6 +410,12 @@ class WeChatBot extends events{
 			+ '&synckey=' + this.flatSyncKey;
 
 		this.getString(url, (err, text) => {
+			if(err) {
+				console.log('fetchMsg error');
+				console.dir(err);
+				setTimeout(self.fetchMsg.bind(self), 500);
+				return;
+			}
 			let needToFetchMsg = true;
 			if(text.indexOf('window.synccheck=') == 0) {
 				needToFetchMsg = false;
